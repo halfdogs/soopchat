@@ -195,7 +195,9 @@ func (c *Client) reader(wg *sync.WaitGroup) {
 func (c *Client) startParser() error {
 	for msg := range c.read {
 		if strings.HasPrefix(string(msg), "error: ") {
-			return errors.New(string(msg))
+			if c.onError != nil {
+				c.onError(errors.New(string(msg)))
+			}
 		}
 
 		if c.onRawMessage != nil {
@@ -203,8 +205,10 @@ func (c *Client) startParser() error {
 		}
 
 		svc, err := getServiceCode(msg)
-		if err != nil && c.onError != nil {
-			c.onError(err)
+		if err != nil {
+			if c.onError != nil {
+				c.onError(err)
+			}
 		}
 
 		switch svc {
