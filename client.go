@@ -195,7 +195,9 @@ func (c *Client) reader(wg *sync.WaitGroup) {
 func (c *Client) startParser() error {
 	for msg := range c.read {
 		if strings.HasPrefix(string(msg), "error: ") {
-			return errors.New(string(msg))
+			if c.onError != nil {
+				c.onError(errors.New(string(msg)))
+			}
 		}
 
 		if c.onRawMessage != nil {
@@ -203,8 +205,10 @@ func (c *Client) startParser() error {
 		}
 
 		svc, err := getServiceCode(msg)
-		if err != nil && c.onError != nil {
-			c.onError(err)
+		if err != nil {
+			if c.onError != nil {
+				c.onError(err)
+			}
 		}
 
 		switch svc {
@@ -233,8 +237,10 @@ func (c *Client) startParser() error {
 		case SVC_CHATMESG: // Chat
 			if c.onChatMessage != nil {
 				m, err := c.parseChatMessage(msg)
-				if err != nil && c.onError != nil {
-					c.onError(err)
+				if err != nil {
+					if c.onError != nil {
+						c.onError(err)
+					}
 				} else {
 					c.onChatMessage(m)
 				}
@@ -242,8 +248,10 @@ func (c *Client) startParser() error {
 		case SVC_SENDBALLOON: // 별풍선
 			if c.onBalloon != nil {
 				m, err := c.parseBalloon(msg)
-				if err != nil && c.onError != nil {
-					c.onError(err)
+				if err != nil {
+					if c.onError != nil {
+						c.onError(err)
+					}
 				} else {
 					c.onBalloon(m)
 				}
@@ -251,8 +259,10 @@ func (c *Client) startParser() error {
 		case SVC_ADCON_EFFECT: // 애드벌룬
 			if c.onAdballoon != nil {
 				m, err := c.parseAdballoon(msg)
-				if err != nil && c.onError != nil {
-					c.onError(err)
+				if err != nil {
+					if c.onError != nil {
+						c.onError(err)
+					}
 				} else {
 					c.onAdballoon(m)
 				}
@@ -260,8 +270,10 @@ func (c *Client) startParser() error {
 		case SVC_FOLLOW_ITEM, SVC_FOLLOW_ITEM_EFFECT: // 신규 구독 / 연속 구독
 			if c.onSubscription != nil {
 				m, err := c.parseSubscription(msg, svc)
-				if err != nil && c.onError != nil {
-					c.onError(err)
+				if err != nil {
+					if c.onError != nil {
+						c.onError(err)
+					}
 				} else {
 					c.onSubscription(m)
 				}
@@ -269,8 +281,10 @@ func (c *Client) startParser() error {
 		case SVC_SENDADMINNOTICE: // 어드민 메시지
 			if c.onAdminNotice != nil {
 				m, err := c.parseAdminNotice(msg)
-				if err != nil && c.onError != nil {
-					c.onError(err)
+				if err != nil {
+					if c.onError != nil {
+						c.onError(err)
+					}
 				} else {
 					c.onAdminNotice(m)
 				}
@@ -278,8 +292,10 @@ func (c *Client) startParser() error {
 		case SVC_MISSION: // 도전미션
 			if c.onMission != nil {
 				m, err := c.parseMission(msg)
-				if err != nil && c.onError != nil {
-					c.onError(err)
+				if err != nil {
+					if c.onError != nil {
+						c.onError(err)
+					}
 				} else {
 					c.onMission(m)
 				}
