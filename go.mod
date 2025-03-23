@@ -1,4 +1,4 @@
-module github.com/you0me0/soopchat
+module github.com/halfdogs/soopchat
 
 go 1.21.6
 
