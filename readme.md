@@ -10,7 +10,7 @@
 ## 사용 방법
 **라이브러리 가져오기**
 
-`go get -u https://github.com/devhalfdog/soopchat`
+`go get -u https://github.com/you0me0/soopchat`
 
 **예제**
 ```go
@@ -90,7 +90,7 @@ func main() {
 
 ### 예제
 - [Warudo](https://warudo.app)
-  - [별풍선을 받을 때마다 OSC 통신 예제](https://github.com/devhalfdog/afreeca-warudo)
+  - [별풍선을 받을 때마다 OSC 통신 예제](https://github.com/you0me0/afreeca-warudo)
 
 다른 프로그램(VSeeFace, Unity) 등 예제는 작성중입니다.
 
