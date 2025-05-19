@@ -3,22 +3,25 @@ package soopchat
 import (
 	"time"
 
-	"github.com/go-resty/resty/v2"
 	"github.com/gorilla/websocket"
 )
 
 type Client struct {
+	callback
+
 	Token Token
 
 	channelPassword string
 	socket          *websocket.Conn
 	socketAddress   string // Socket Address
 	read            chan []byte
-	httpClient      *resty.Client
 	pingpongTimer   *time.Ticker
+	handshake       [][]byte
 
-	handshake [][]byte
+	apiService apiService
+}
 
+type callback struct {
 	// callback
 	onError        func(err error)
 	onConnect      func(isConnect bool)
@@ -51,7 +54,7 @@ type Identifier struct {
 	Password string
 }
 
-type Log struct {
+type log struct {
 	SetBps          string `json:"set_bps"`
 	ViewBps         string `json:"view_bps"`
 	Quality         string `json:"quality"`
@@ -63,7 +66,7 @@ type Log struct {
 	Subscribe       string `json:"subscribe"`
 }
 
-type Info struct {
+type info struct {
 	Password string `json:"pwd"`
 	AuthInfo string `json:"auth_info"`
 	// PVer     string `json:"pver"`
@@ -78,8 +81,8 @@ type User struct {
 }
 
 type UserFlag struct {
-	Flag1 Flag1
-	Flag2 Flag2
+	Flag1
+	Flag2
 }
 
 type Flag1 struct {

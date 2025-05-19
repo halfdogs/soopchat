@@ -127,14 +127,14 @@ func (c *Client) parseSubscription(message []byte, svc int) (Subscription, error
 	count := 1
 
 	switch svc {
-	case SVC_FOLLOW_ITEM: // 구독
+	case svc_FOLLOW_ITEM: // 구독
 		user.ID = removeParentheses(msg[3])
 		user.Name = msg[4]
 		count, err = strconv.Atoi(msg[5])
 		if err != nil {
 			return Subscription{}, err
 		}
-	case SVC_FOLLOW_ITEM_EFFECT: // 구독 이펙트 (언제 실행되는 지 연구 필요.)
+	case svc_FOLLOW_ITEM_EFFECT: // 구독 이펙트 (언제 실행되는 지 연구 필요.)
 		user.ID = removeParentheses(msg[2])
 		user.Name = msg[3]
 		count, err = strconv.Atoi(msg[4])
