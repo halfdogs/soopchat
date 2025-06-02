@@ -17,10 +17,10 @@ import (
 // NewClient 함수는 Client 구조체를
 // 초기화하여 생성한다.
 func NewClient(token Token) (*Client, error) {
-	// BJ ID가 있어야 SocketAddress 및 ChatRoom 설정하므로
+	// StreamerID가 있어야 SocketAddress 및 ChatRoom 설정하므로
 	// 필수 토큰이다. 없을 경우 에러를 반환한다.
 	if token.StreamerID == "" {
-		return &Client{}, errors.New("need bj id value")
+		return &Client{}, errors.New("StreamerID is missing from token")
 	}
 
 	// resty client 생성
@@ -32,27 +32,32 @@ func NewClient(token Token) (*Client, error) {
 		read:            make(chan []byte, 1024),
 		handshake:       make([][]byte, 2),
 		channelPassword: "",
-		httpClient:      httpClient,
+		apiService:      apiService{http: httpClient},
 	}, nil
 }
 
-// MustConnect 메서드는 채팅 서버 연결에 필요한
+// Connect 메서드는 채팅 서버 연결에 필요한
 // 과정을 수행한다.
-// Panic이 발생하는 원인을 해결하기 전까지 Must prefix
-func (c *Client) MustConnect(password ...string) error {
+func (c *Client) Connect(password ...string) error {
 	// 패스워드가 있다면 필드에 값을 대입한다.
 	if len(password) > 0 {
 		c.channelPassword = password[0]
 	}
 
-	// Identifier 값이 있다면 로그인 과정을 수행한다.
+	// Identifier 값이 있다면 로그인 과정을 자동으로 수행한다.
 	if c.Token.Identifier.ID != "" && c.Token.Identifier.Password != "" {
-		err := c.login()
+		err := c.apiService.login(*c)
 		if err != nil {
-			if c.onError != nil {
+			// 에러가 발생하였다면 로그인 실패
+			if c.onLogin != nil {
 				c.onLogin(false)
 			}
 
+			// 로그인 실패 시 에러를 반환하는 대신
+			// 콜백으로 전달
+			if c.onError != nil {
+				c.onError(err)
+			}
 			return err
 		}
 
@@ -62,14 +67,20 @@ func (c *Client) MustConnect(password ...string) error {
 	}
 
 	// 자동으로 Socket Address 및 Chat Room를 가져옵니다.
-	err := c.setSocketData()
+	err := c.apiService.setSocketData(c)
 	if err != nil {
+		if c.onError != nil {
+			c.onError(err)
+		}
 		return err
 	}
 
 	// websocket 생성/연결 작업을 수행한다.
 	err = c.createWebsocket()
 	if err != nil {
+		if c.onError != nil {
+			c.onError(err)
+		}
 		return err
 	}
 
@@ -84,14 +95,20 @@ func (c *Client) executeHandshake(svc int) error {
 
 	// 서비스코드 값에 따라 핸드쉐이크 준비
 	switch svc {
-	case SVC_LOGIN:
+	case svc_LOGIN:
 		err = c.setLoginHandshke()
 		if err != nil {
+			if c.onError != nil {
+				c.onError(err)
+			}
 			return err
 		}
-	case SVC_JOINCH:
+	case svc_JOINCH:
 		err = c.setJoinHandshake()
 		if err != nil {
+			if c.onError != nil {
+				c.onError(err)
+			}
 			return err
 		}
 	}
@@ -99,6 +116,9 @@ func (c *Client) executeHandshake(svc int) error {
 	// 핸드쉐이크 수행
 	err = c.setHandshake(svc)
 	if err != nil {
+		if c.onError != nil {
+			c.onError(err)
+		}
 		return err
 	}
 
@@ -117,12 +137,16 @@ func (c *Client) setHandshake(svc int) error {
 		if c.onConnect != nil {
 			c.onConnect(false)
 		}
+
+		if c.onError != nil {
+			c.onError(err)
+		}
 		return err
 	}
 
 	// 채널 접속에 성공할 경우
 	// onConnect 콜백에 true를 전달한다.
-	if svc == SVC_JOINCH {
+	if svc == svc_JOINCH {
 		if c.onConnect != nil {
 			c.onConnect(true)
 		}
@@ -151,7 +175,7 @@ func (c *Client) processSocket() error {
 
 	// 로그인 핸드쉐이크
 	// 이 때 에러가 발생하면 작업이 완료된다.
-	err := c.executeHandshake(SVC_LOGIN)
+	err := c.executeHandshake(svc_LOGIN)
 	if err != nil {
 		wg.Done()
 		return err
@@ -212,16 +236,16 @@ func (c *Client) startParser() error {
 		}
 
 		switch svc {
-		case SVC_LOGIN: // Login, need JOIN handshake
+		case svc_LOGIN: // Login, need JOIN handshake
 			// 로그인 단계에서 실패할 경우엔 에러를 반환한다.
-			err := c.executeHandshake(SVC_JOINCH)
+			err := c.executeHandshake(svc_JOINCH)
 			if err != nil {
 				if c.onError != nil {
 					c.onError(err)
 				}
 				return err
 			}
-		case SVC_JOINCH: // 채널 입장
+		case svc_JOINCH: // 채널 입장
 			if c.onJoinChannel != nil {
 				if b := c.parseJoinChannel(msg); b {
 					c.onJoinChannel(true)
@@ -229,12 +253,12 @@ func (c *Client) startParser() error {
 					c.onJoinChannel(false)
 				}
 			}
-		case SVC_CHUSER: // 입장/퇴장
+		case svc_CHUSER: // 입장/퇴장
 			if c.onUserLists != nil {
 				m := c.parseUserJoin(msg)
 				c.onUserLists(m)
 			}
-		case SVC_CHATMESG: // Chat
+		case svc_CHATMESG: // Chat
 			if c.onChatMessage != nil {
 				m, err := c.parseChatMessage(msg)
 				if err != nil {
@@ -245,7 +269,7 @@ func (c *Client) startParser() error {
 					c.onChatMessage(m)
 				}
 			}
-		case SVC_SENDBALLOON: // 별풍선
+		case svc_SENDBALLOON: // 별풍선
 			if c.onBalloon != nil {
 				m, err := c.parseBalloon(msg)
 				if err != nil {
@@ -256,7 +280,7 @@ func (c *Client) startParser() error {
 					c.onBalloon(m)
 				}
 			}
-		case SVC_ADCON_EFFECT: // 애드벌룬
+		case svc_ADCON_EFFECT: // 애드벌룬
 			if c.onAdballoon != nil {
 				m, err := c.parseAdballoon(msg)
 				if err != nil {
@@ -267,7 +291,7 @@ func (c *Client) startParser() error {
 					c.onAdballoon(m)
 				}
 			}
-		case SVC_FOLLOW_ITEM, SVC_FOLLOW_ITEM_EFFECT: // 신규 구독 / 연속 구독
+		case svc_FOLLOW_ITEM, svc_FOLLOW_ITEM_EFFECT: // 신규 구독 / 연속 구독
 			if c.onSubscription != nil {
 				m, err := c.parseSubscription(msg, svc)
 				if err != nil {
@@ -278,7 +302,7 @@ func (c *Client) startParser() error {
 					c.onSubscription(m)
 				}
 			}
-		case SVC_SENDADMINNOTICE: // 어드민 메시지
+		case svc_SENDADMINNOTICE: // 어드민 메시지
 			if c.onAdminNotice != nil {
 				m, err := c.parseAdminNotice(msg)
 				if err != nil {
@@ -289,7 +313,7 @@ func (c *Client) startParser() error {
 					c.onAdminNotice(m)
 				}
 			}
-		case SVC_MISSION: // 도전미션
+		case svc_MISSION: // 도전미션
 			if c.onMission != nil {
 				m, err := c.parseMission(msg)
 				if err != nil {
@@ -330,7 +354,7 @@ func (c *Client) pingpong() {
 	go func() {
 		for range c.pingpongTimer.C {
 			bodyBuf := makeBuffer([]string{"\f"})
-			headerbuf := makeHeader(SVC_KEEPALIVE, len(bodyBuf), 0)
+			headerbuf := makeHeader(svc_KEEPALIVE, len(bodyBuf), 0)
 			p := append(headerbuf, bodyBuf...)
 			c.socket.WriteMessage(websocket.BinaryMessage, p)
 		}
@@ -374,8 +398,8 @@ func (c *Client) setLoginHandshke() error {
 // 필요한 Join Handshake 데이터를 준비한다.
 func (c *Client) setJoinHandshake() error {
 	infoPacket := append(
-		c.SetLogHandshake(DefaultLog()),
-		c.SetInfoHandshake(DefaultInfo(c.channelPassword))...,
+		c.setLogHandshake(defaultLog()),
+		c.setInfoHandshake(defaultInfo(c.channelPassword))...,
 	)
 	var packet []string
 	packet = append(
@@ -408,9 +432,9 @@ func (c *Client) setHandshakeData(svc int, packet []string) error {
 	return nil
 }
 
-// SetLogHandshake 메서드는 Handshake 과정 중
+// setLogHandshake 메서드는 Handshake 과정 중
 // 필요한 Log 데이터를 가공한다.
-func (c *Client) SetLogHandshake(log Log) []byte {
+func (c *Client) setLogHandshake(log log) []byte {
 	result := append([]byte("log"), 17)
 	result = append(result, c.setLogValue(log)...)
 	result = append(result, 18)
@@ -418,9 +442,9 @@ func (c *Client) SetLogHandshake(log Log) []byte {
 	return result
 }
 
-// SetInfoHandshake 메서드는 Handshake 과정 중
+// setInfoHandshake 메서드는 Handshake 과정 중
 // 필요한 Info 데이터를 가공한다.
-func (c *Client) SetInfoHandshake(info Info) []byte {
+func (c *Client) setInfoHandshake(info info) []byte {
 	var result []byte
 	infoValue := reflect.ValueOf(info)
 
@@ -441,7 +465,7 @@ func (c *Client) SetInfoHandshake(info Info) []byte {
 
 // setLogValue 메서드는 Handshake 과정 중
 // Log 구조체를 []byte 로 변환한다.
-func (c *Client) setLogValue(log Log) []byte {
+func (c *Client) setLogValue(log log) []byte {
 	var result []byte
 	logValue := reflect.ValueOf(log)
 

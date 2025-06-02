@@ -6,11 +6,11 @@ import (
 	"strings"
 )
 
-// DefaultLog 함수는 채팅 서버 연결에 필요한
+// defaultLog 함수는 채팅 서버 연결에 필요한
 // Handshake 데이터 중 미리 초기화된 Log 데이터를
 // 반환한다.
-func DefaultLog() Log {
-	return Log{
+func defaultLog() log {
+	return log{
 		SetBps:          "undefined",
 		ViewBps:         "NaN",
 		Quality:         "ori",
@@ -23,11 +23,11 @@ func DefaultLog() Log {
 	}
 }
 
-// DefaultInfo 함수는 채팅 서버 연결에 필요한
+// defaultInfo 함수는 채팅 서버 연결에 필요한
 // Handshake 데이터 중 미리 초기화된 Info 데이터를
 // 반환한다.
-func DefaultInfo(password string) Info {
-	return Info{
+func defaultInfo(password string) info {
+	return info{
 		Password: password,
 		AuthInfo: "undefined",
 	}

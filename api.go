@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/go-resty/resty/v2"
 	"github.com/tidwall/gjson"
 )
 
@@ -14,17 +15,21 @@ const (
 	user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0"
 )
 
-func (c *Client) setSocketData() error {
+type apiService struct {
+	http *resty.Client
+}
+
+func (s apiService) setSocketData(client *Client) error {
 	data := url.Values{}
-	data.Set("bid", c.Token.StreamerID)
+	data.Set("bid", client.Token.StreamerID)
 	data.Set("player_type", "html5")
 
-	resp, err := c.httpClient.R().
+	resp, err := s.http.R().
 		SetFormData(map[string]string{
-			"bid":         c.Token.StreamerID,
+			"bid":         client.Token.StreamerID,
 			"player_type": "html5",
 		}).
-		Post(fmt.Sprintf(dataUrl, c.Token.StreamerID))
+		Post(fmt.Sprintf(dataUrl, client.Token.StreamerID))
 	if err != nil {
 		return err
 	}
@@ -39,19 +44,19 @@ func (c *Client) setSocketData() error {
 	domain := jsonResult.Get("CHDOMAIN").String()
 	port := jsonResult.Get("CHPT").Int() + 1
 
-	c.socketAddress = fmt.Sprintf("wss://%s:%d/Websocket", domain, port)
-	c.Token.chatRoom = jsonResult.Get("CHATNO").String()
+	client.socketAddress = fmt.Sprintf("wss://%s:%d/Websocket", domain, port)
+	client.Token.chatRoom = jsonResult.Get("CHATNO").String()
 
 	return nil
 }
 
-func (c *Client) login() error {
-	resp, err := c.httpClient.R().
+func (s apiService) login(client Client) error {
+	resp, err := s.http.R().
 		SetFormData(map[string]string{
 			"szWork":     "login",
 			"szType":     "json",
-			"szUid":      c.Token.Identifier.ID,
-			"szPassword": c.Token.Identifier.Password,
+			"szUid":      client.Token.Identifier.ID,
+			"szPassword": client.Token.Identifier.Password,
 		}).
 		SetHeader("User-Agent", user_agent).
 		Post(loginUrl)
