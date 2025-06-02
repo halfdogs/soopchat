@@ -58,6 +58,7 @@ func (c *Client) Connect(password ...string) error {
 			if c.onError != nil {
 				c.onError(err)
 			}
+			return err
 		}
 
 		if c.onLogin != nil {
@@ -68,12 +69,18 @@ func (c *Client) Connect(password ...string) error {
 	// 자동으로 Socket Address 및 Chat Room를 가져옵니다.
 	err := c.apiService.setSocketData(c)
 	if err != nil {
+		if c.onError != nil {
+			c.onError(err)
+		}
 		return err
 	}
 
 	// websocket 생성/연결 작업을 수행한다.
 	err = c.createWebsocket()
 	if err != nil {
+		if c.onError != nil {
+			c.onError(err)
+		}
 		return err
 	}
 
@@ -91,11 +98,17 @@ func (c *Client) executeHandshake(svc int) error {
 	case svc_LOGIN:
 		err = c.setLoginHandshke()
 		if err != nil {
+			if c.onError != nil {
+				c.onError(err)
+			}
 			return err
 		}
 	case svc_JOINCH:
 		err = c.setJoinHandshake()
 		if err != nil {
+			if c.onError != nil {
+				c.onError(err)
+			}
 			return err
 		}
 	}
@@ -103,6 +116,9 @@ func (c *Client) executeHandshake(svc int) error {
 	// 핸드쉐이크 수행
 	err = c.setHandshake(svc)
 	if err != nil {
+		if c.onError != nil {
+			c.onError(err)
+		}
 		return err
 	}
 
@@ -120,6 +136,10 @@ func (c *Client) setHandshake(svc int) error {
 	if err != nil {
 		if c.onConnect != nil {
 			c.onConnect(false)
+		}
+
+		if c.onError != nil {
+			c.onError(err)
 		}
 		return err
 	}
