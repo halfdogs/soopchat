@@ -45,7 +45,7 @@ func main() {
 
     // 채팅방 접속을 시도합니다.
     // 에러가 발생할 경우 panic()을 호출합니다.
-    err := client.MustConnect()
+    err := client.Connect()
     if err != nil {
         panic(err)
     }
