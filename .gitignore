@@ -1,3 +1,4 @@
 /cmd
+/v2/cmd
 
 *_test.go
