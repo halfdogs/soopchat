@@ -104,6 +104,3 @@ func main() {
 ## 버전 히스토리
 - v0.2.0
   - 기존 `afreecachat`에서 `soopchat`으로 패키지 이름 및 깃허브 이름 변경
-
-## 참고하면 좋은 라이브러리
-- [https://github.com/wakscord/afreeca](https://github.com/wakscord/afreeca)

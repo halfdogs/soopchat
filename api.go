@@ -3,7 +3,6 @@ package soopchat
 import (
 	"errors"
 	"fmt"
-	"net/url"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/tidwall/gjson"
@@ -20,10 +19,6 @@ type apiService struct {
 }
 
 func (s apiService) setSocketData(client *Client) error {
-	data := url.Values{}
-	data.Set("bid", client.Token.StreamerID)
-	data.Set("player_type", "html5")
-
 	resp, err := s.http.R().
 		SetFormData(map[string]string{
 			"bid":         client.Token.StreamerID,
