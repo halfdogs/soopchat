@@ -202,12 +202,14 @@ func (c *Client) reader(wg *sync.WaitGroup) {
 
 	// 작업이 완료될 때까지 계속 웹소켓으로 들어오는 데이터를
 	// 리시버의 read 필드로 전달한다.
-	// 에러가 발생할 경우 read 필드에 error 를 전달한다.
+	// 에러 발생 시 웹소켓 연결 실패이므로 루프를 탈출한다.
 	for {
 		_, msg, err := c.socket.ReadMessage()
 		if err != nil {
-			c.read <- []byte(fmt.Sprintf("error: %s", err.Error()))
-			continue
+			if c.onConnect != nil {
+				c.onConnect(false)
+			}
+			break
 		}
 
 		c.read <- msg

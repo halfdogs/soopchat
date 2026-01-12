@@ -8,6 +8,7 @@ import (
 )
 
 func (c *Client) parseJoinChannel(message []byte) bool {
+	// TODO - 수정 필요
 	msg := strings.Split(string(message), "\f")
 	return msg[1] != "비밀번호가 틀렸습니다."
 }
