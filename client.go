@@ -25,7 +25,7 @@ func NewClient(token Token) (*Client, error) {
 
 	// resty client 생성
 	httpClient := resty.New()
-	httpClient.SetTimeout(time.Duration(2 * time.Second))
+	httpClient.SetTimeout(time.Duration(10 * time.Second))
 
 	return &Client{
 		Token:           token,
