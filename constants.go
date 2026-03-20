@@ -68,7 +68,8 @@ const (
 	svc_ADMIN_CHUSER          = 78
 	svc_CLIDOBAEINFO          = 79
 	svc_VOD_BALLOON           = 86
-	svc_ADCON_EFFECT          = 87
+	svc_ADCON_EFFECT          = 87 /* 애드벌룬 */
+	svc_CLOSE_BROAD           = 88 /* 방송 종료 */
 	svc_SVC_KICK_MSG_STATE    = 90
 	svc_FOLLOW_ITEM           = 91 /* 신규 구독 */
 	svc_ITEM_SELL_EFFECT      = 92

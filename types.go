@@ -11,42 +11,48 @@ type Client struct {
 
 	Token Token
 
-	channelPassword string
-	socket          *websocket.Conn
-	socketAddress   string // Socket Address
-	read            chan []byte
-	pingpongTimer   *time.Ticker
-	handshake       [][]byte
+	socket        *websocket.Conn
+	socketAddress string // Socket Address
+	read          chan []byte
+	pingpongTimer *time.Ticker
+	handshake     [][]byte
 
 	apiService apiService
+	option     Option
 }
 
 type callback struct {
 	// callback
-	onError        func(err error)
-	onConnect      func(isConnect bool)
-	onJoinChannel  func(isJoin bool)
-	onRawMessage   func(message string)
-	onChatMessage  func(message ChatMessage)
-	onUserLists    func(userlist []UserList)
-	onAdballoon    func(adballoon Adballoon)
-	onBalloon      func(balloon Balloon)
-	onSubscription func(subscrption Subscription)
-	onAdminNotice  func(message string)
-	onMission      func(mission Mission)
+	onError          func(err error)
+	onConnect        func(isConnect bool)
+	onClose          func(isClose bool)
+	onJoinChannel    func(isJoin bool)
+	onRawMessage     func(message string)
+	onChatMessage    func(message ChatMessage)
+	onUserLists      func(userlist []UserList)
+	onAdballoon      func(adballoon Adballoon)
+	onBalloon        func(balloon Balloon)
+	onSubscription   func(subscrption Subscription)
+	onAdminNotice    func(message string)
+	onMission        func(mission Mission)
+	onStreamerNotice func(message string)
 
 	// api callback
 	onLogin func(isLoginSuccess bool)
 }
 
-type Token struct {
-	StreamerID string
-	Identifier Identifier
-	Flag       string
+type Option struct {
+	AutoClose bool // 방송이 종료될 때 클라이언트도 종료하는 옵션
+}
 
-	authTicket string
-	fanTicket  string
-	chatRoom   string
+type Token struct {
+	StreamerID string     // 스트리머 ID
+	Identifier Identifier // 사용자 계정 정보
+
+	streamPassword string // 방송 비밀번호
+	authTicket     string
+	fanTicket      string
+	chatRoom       string
 }
 
 type Identifier struct {
@@ -162,4 +168,11 @@ type Mission struct {
 	User  User   // 유저
 	Title string // 미션 이름
 	Count int    // 미션 별풍선 갯수
+}
+
+type missionPayload struct {
+	UserID      string `json:"user_id"`
+	UserNick    string `json:"user_nick"`
+	Title       string `json:"title"`
+	BallonCount int    `json:"gift_count"`
 }

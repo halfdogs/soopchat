@@ -129,9 +129,9 @@ func parseSingleUserList(msg []string) UserList {
 // removeParentheses 함수는 문자열에 포함되어 있는
 // () 와 그 안의 있는 내용을 제거하여 반환합니다.
 func removeParentheses(str string) string {
-	idx := strings.Index(str, "(")
-	if idx != -1 {
-		return str[:idx]
+	before, _, ok := strings.Cut(str, "(")
+	if ok {
+		return strings.TrimSpace(before)
 	}
 
 	return str

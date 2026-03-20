@@ -54,8 +54,14 @@ func (c *Client) OnAdminNotice(callback func(message string)) {
 	c.onAdminNotice = callback
 }
 
+// OnMission 메서드는 도전미션 데이터를 전달한다.
 func (c *Client) OnMission(callback func(mission Mission)) {
 	c.onMission = callback
+}
+
+// OnStreamerNotice 메서드는 방송 공지 메시지 데이터를 전달한다.
+func (c *Client) OnStreamerNotice(callback func(message string)) {
+	c.onStreamerNotice = callback
 }
 
 /*****************

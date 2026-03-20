@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -28,12 +29,16 @@ func NewClient(token Token) (*Client, error) {
 	httpClient.SetTimeout(time.Duration(10 * time.Second))
 
 	return &Client{
-		Token:           token,
-		read:            make(chan []byte, 1024),
-		handshake:       make([][]byte, 2),
-		channelPassword: "",
-		apiService:      apiService{http: httpClient},
+		Token:      token,
+		read:       make(chan []byte, 1024),
+		handshake:  make([][]byte, 2),
+		apiService: apiService{http: httpClient},
 	}, nil
+}
+
+func (c *Client) SetOption(option Option) *Client {
+	c.option = option
+	return c
 }
 
 // Connect 메서드는 채팅 서버 연결에 필요한
@@ -41,7 +46,7 @@ func NewClient(token Token) (*Client, error) {
 func (c *Client) Connect(password ...string) error {
 	// 패스워드가 있다면 필드에 값을 대입한다.
 	if len(password) > 0 {
-		c.channelPassword = password[0]
+		c.Token.streamPassword = password[0]
 	}
 
 	// Identifier 값이 있다면 로그인 과정을 자동으로 수행한다.
@@ -55,9 +60,7 @@ func (c *Client) Connect(password ...string) error {
 
 			// 로그인 실패 시 에러를 반환하는 대신
 			// 콜백으로 전달
-			if c.onError != nil {
-				c.onError(err)
-			}
+			c.reportError(err)
 			return err
 		}
 
@@ -69,18 +72,14 @@ func (c *Client) Connect(password ...string) error {
 	// 자동으로 Socket Address 및 Chat Room를 가져옵니다.
 	err := c.apiService.setSocketData(c)
 	if err != nil {
-		if c.onError != nil {
-			c.onError(err)
-		}
+		c.reportError(err)
 		return err
 	}
 
 	// websocket 생성/연결 작업을 수행한다.
 	err = c.createWebsocket()
 	if err != nil {
-		if c.onError != nil {
-			c.onError(err)
-		}
+		c.reportError(err)
 		return err
 	}
 
@@ -98,17 +97,13 @@ func (c *Client) executeHandshake(svc int) error {
 	case svc_LOGIN:
 		err = c.setLoginHandshke()
 		if err != nil {
-			if c.onError != nil {
-				c.onError(err)
-			}
+			c.reportError(err)
 			return err
 		}
 	case svc_JOINCH:
 		err = c.setJoinHandshake()
 		if err != nil {
-			if c.onError != nil {
-				c.onError(err)
-			}
+			c.reportError(err)
 			return err
 		}
 	}
@@ -116,9 +111,7 @@ func (c *Client) executeHandshake(svc int) error {
 	// 핸드쉐이크 수행
 	err = c.setHandshake(svc)
 	if err != nil {
-		if c.onError != nil {
-			c.onError(err)
-		}
+		c.reportError(err)
 		return err
 	}
 
@@ -138,9 +131,7 @@ func (c *Client) setHandshake(svc int) error {
 			c.onConnect(false)
 		}
 
-		if c.onError != nil {
-			c.onError(err)
-		}
+		c.reportError(err)
 		return err
 	}
 
@@ -158,12 +149,20 @@ func (c *Client) setHandshake(svc int) error {
 // processSocket 메서드는 웹소켓으로
 // 들어오는 데이터를 처리한다.
 func (c *Client) processSocket() error {
-	// 함수가 종료되기 전에 소켓을 닫는다.
-	defer c.socket.Close()
-
 	// WaitGroup을 생성해 작업 완료까지 대기한다.
-	wg := sync.WaitGroup{}
+	var wg sync.WaitGroup
 	wg.Add(1)
+
+	// 함수가 종료될 떄 타이머와 소켓을 종료한다.
+	defer func() {
+		if c.pingpongTimer != nil {
+			c.pingpongTimer.Stop()
+		}
+		if c.socket != nil {
+			_ = c.socket.Close()
+		}
+		wg.Wait()
+	}()
 
 	// 웹소켓으로 넘어오는 데이터를 비동기 처리한다.
 	// 이 때 에러가 발생하면 작업이 완료된다.
@@ -171,25 +170,18 @@ func (c *Client) processSocket() error {
 
 	// 아빠 안잔다.
 	c.pingpong()
-	defer c.pingpongTimer.Stop()
 
 	// 로그인 핸드쉐이크
 	// 이 때 에러가 발생하면 작업이 완료된다.
-	err := c.executeHandshake(svc_LOGIN)
-	if err != nil {
-		wg.Done()
+	if err := c.executeHandshake(svc_LOGIN); err != nil {
 		return err
 	}
 
 	// 웹소켓으로 넘어오는 데이터를 분석/가공한다.
-	err = c.startParser()
-	if err != nil {
-		wg.Done()
+	if err := c.startParser(); err != nil {
 		return err
 	}
 
-	// 모든 작업이 완료될 때까지 대기한다.
-	wg.Wait()
 	return nil
 }
 
@@ -209,7 +201,7 @@ func (c *Client) reader(wg *sync.WaitGroup) {
 			if c.onConnect != nil {
 				c.onConnect(false)
 			}
-			break
+			return
 		}
 
 		c.read <- msg
@@ -220,116 +212,95 @@ func (c *Client) reader(wg *sync.WaitGroup) {
 // 처리하여 콜백 함수로 전달한다.
 func (c *Client) startParser() error {
 	for msg := range c.read {
-		if strings.HasPrefix(string(msg), "error: ") {
-			if c.onError != nil {
-				c.onError(errors.New(string(msg)))
-			}
-		}
-
 		if c.onRawMessage != nil {
-			c.onRawMessage(fmt.Sprintf("%q", msg))
+			c.onRawMessage(strconv.Quote(string(msg)))
+			// c.onRawMessage(fmt.Sprintf("%q", msg))
 		}
 
 		svc, err := getServiceCode(msg)
 		if err != nil {
-			if c.onError != nil {
-				c.onError(err)
-			}
+			c.reportError(err)
 		}
 
 		switch svc {
 		case svc_LOGIN: // Login, need JOIN handshake
 			// 로그인 단계에서 실패할 경우엔 에러를 반환한다.
-			err := c.executeHandshake(svc_JOINCH)
-			if err != nil {
-				if c.onError != nil {
-					c.onError(err)
-				}
+			if err := c.executeHandshake(svc_JOINCH); err != nil {
+				c.reportError(err)
 				return err
 			}
+
 		case svc_JOINCH: // 채널 입장
-			if c.onJoinChannel != nil {
-				if b := c.parseJoinChannel(msg); b {
-					c.onJoinChannel(true)
-				} else {
-					c.onJoinChannel(false)
-				}
-			}
+			dispatch(c, c.parseJoinChannel, c.onJoinChannel, msg)
+
 		case svc_CHUSER: // 입장/퇴장
-			if c.onUserLists != nil {
-				m := c.parseUserJoin(msg)
-				c.onUserLists(m)
-			}
+			dispatch(c, c.parseUserJoin, c.onUserLists, msg)
+
 		case svc_CHATMESG: // Chat
-			if c.onChatMessage != nil {
-				m, err := c.parseChatMessage(msg)
-				if err != nil {
-					if c.onError != nil {
-						c.onError(err)
-					}
-				} else {
-					c.onChatMessage(m)
-				}
-			}
+			dispatch(c, c.parseChatMessage, c.onChatMessage, msg)
+
 		case svc_SENDBALLOON: // 별풍선
-			if c.onBalloon != nil {
-				m, err := c.parseBalloon(msg)
-				if err != nil {
-					if c.onError != nil {
-						c.onError(err)
-					}
-				} else {
-					c.onBalloon(m)
-				}
-			}
+			dispatch(c, c.parseBalloon, c.onBalloon, msg)
+
 		case svc_ADCON_EFFECT: // 애드벌룬
-			if c.onAdballoon != nil {
-				m, err := c.parseAdballoon(msg)
-				if err != nil {
-					if c.onError != nil {
-						c.onError(err)
-					}
-				} else {
-					c.onAdballoon(m)
-				}
-			}
+			dispatch(c, c.parseAdballoon, c.onAdballoon, msg)
+
 		case svc_FOLLOW_ITEM, svc_FOLLOW_ITEM_EFFECT: // 신규 구독 / 연속 구독
-			if c.onSubscription != nil {
-				m, err := c.parseSubscription(msg, svc)
-				if err != nil {
-					if c.onError != nil {
-						c.onError(err)
-					}
-				} else {
-					c.onSubscription(m)
-				}
+			parseFunc := func(b []byte) (Subscription, error) {
+				return c.parseSubscription(b, svc)
 			}
+			dispatch(c, parseFunc, c.onSubscription, msg)
+
 		case svc_SENDADMINNOTICE: // 어드민 메시지
-			if c.onAdminNotice != nil {
-				m, err := c.parseAdminNotice(msg)
-				if err != nil {
-					if c.onError != nil {
-						c.onError(err)
-					}
-				} else {
-					c.onAdminNotice(m)
-				}
-			}
+			dispatch(c, c.parseAdminNotice, c.onAdminNotice, msg)
+
 		case svc_MISSION: // 도전미션
-			if c.onMission != nil {
-				m, err := c.parseMission(msg)
-				if err != nil {
-					if c.onError != nil {
-						c.onError(err)
-					}
-				} else {
-					c.onMission(m)
-				}
+			dispatch(c, c.parseMission, c.onMission, msg)
+
+		case svc_BJ_NOTICE: // 스트리머 채팅 공지
+			dispatch(c, c.parseStreamerNotice, c.onStreamerNotice, msg)
+
+		case svc_CLOSE_BROAD: // 방송 종료
+			if c.onClose != nil {
+				c.onClose(true)
+			}
+
+			if c.option.AutoClose {
+				c.socket.Close()
+				return nil
 			}
 		}
 	}
 
 	return nil
+}
+
+// reportError 메서드는 유효한 에러가 있을 때 onError 콜백을 호출한다.
+func (c *Client) reportError(err error) {
+	if err != nil && c.onError != nil {
+		c.onError(err)
+	}
+}
+
+// dispatch 메서드는 메시지를 parse로 해석하고
+// 결과를 callback에 전달한다.
+func dispatch[T any](
+	c *Client, parse func([]byte) (T, error), callback func(T), msg []byte,
+) {
+	// 콜백이 없다면 반환
+	if callback == nil {
+		return
+	}
+
+	// 전달받은 파서 함수에 msg를 넣는다
+	v, err := parse(msg)
+	if err != nil {
+		c.reportError(err)
+		return
+	}
+
+	// 전달받은 콜백 호출
+	callback(v)
 }
 
 // SendChatMessage 메서드는 채팅 채널에 채팅 데이터를 전송한다.
@@ -391,7 +362,7 @@ func (c *Client) createWebsocket() error {
 // 필요한 Login Handshake 데이터를 준비한다.
 func (c *Client) setLoginHandshke() error {
 	var packet []string
-	packet = append(packet, "\f", c.Token.authTicket, "\f", "\f", c.Token.Flag, "\f")
+	packet = append(packet, "\f", c.Token.authTicket, "\f", "\f", "", "\f")
 
 	return c.setHandshakeData(1, packet)
 }
@@ -401,7 +372,7 @@ func (c *Client) setLoginHandshke() error {
 func (c *Client) setJoinHandshake() error {
 	infoPacket := append(
 		c.setLogHandshake(defaultLog()),
-		c.setInfoHandshake(defaultInfo(c.channelPassword))...,
+		c.setInfoHandshake(defaultInfo(c.Token.streamPassword))...,
 	)
 	var packet []string
 	packet = append(

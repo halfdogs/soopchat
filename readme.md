@@ -89,6 +89,8 @@ func main() {
   - 도전미션 별풍선 메시지가 있을 때마다 `Misson` 구조체를 반환합니다.
 - `OnLogin(bool)`
   - 로그인 과정에서 성공/실패 여부를 반환합니다.
+- `OnStreamerNotice(string)`
+  - 스트리머의 채팅 공지가 있을 때 공지 문자열을 반환합니다.
 
 ### 예제
 - [Warudo](https://warudo.app)
