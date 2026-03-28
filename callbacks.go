@@ -29,6 +29,11 @@ func (c *Client) OnChatMessage(callback func(message ChatMessage)) {
 	c.onChatMessage = callback
 }
 
+// OnOGQMessage 메서드는 유저가 OGQ 이모티콘를 사용했을 때 데이터를 전달한다.
+func (c *Client) OnOGQMessage(callback func(message OGQMessage)) {
+	c.onOGQMessage = callback
+}
+
 // OnUserLists 메서드는 유저 입장/퇴장 데이터를 전달한다.
 func (c *Client) OnUserLists(callback func(userlist []UserList)) {
 	c.onUserLists = callback

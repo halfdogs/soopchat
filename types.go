@@ -29,6 +29,7 @@ type callback struct {
 	onJoinChannel    func(isJoin bool)
 	onRawMessage     func(message string)
 	onChatMessage    func(message ChatMessage)
+	onOGQMessage     func(message OGQMessage)
 	onUserLists      func(userlist []UserList)
 	onAdballoon      func(adballoon Adballoon)
 	onBalloon        func(balloon Balloon)
@@ -42,7 +43,8 @@ type callback struct {
 }
 
 type Option struct {
-	AutoClose bool // 방송이 종료될 때 클라이언트도 종료하는 옵션
+	// 방송이 종료될 때 클라이언트도 자동으로 종료되는 옵션
+	AutoClose bool
 }
 
 type Token struct {
@@ -142,6 +144,12 @@ type Flag2 struct {
 type ChatMessage struct {
 	User    User
 	Message string // 채팅
+}
+
+type OGQMessage struct {
+	User     User   // OGQ 이모티콘를 사용한 유저
+	Message  string // 채팅 메시지
+	ImageURL string // OGQ 이모티콘 주소
 }
 
 type UserList struct {

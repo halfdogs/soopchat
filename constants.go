@@ -14,7 +14,7 @@ const (
 	svc_DIRECTCHAT            = 9
 	svc_NOTICE                = 10 /* 사용하지 않음 */
 	svc_KICK                  = 11 /* 사용하지 않음 */
-	svc_SETUSERFLAG           = 12
+	svc_SETUSERFLAG           = 12 /* 유저 플래그 설정 (ex. 팬클럽 가입 등) */
 	svc_SETSUBBJ              = 13
 	svc_SETNICKNAME           = 14
 	svc_SVRSTAT               = 15 /* 사용하지 않음 */

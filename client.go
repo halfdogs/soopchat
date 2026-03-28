@@ -201,6 +201,7 @@ func (c *Client) reader(wg *sync.WaitGroup) {
 			if c.onConnect != nil {
 				c.onConnect(false)
 			}
+			c.reportError(err)
 			return
 		}
 
@@ -214,7 +215,6 @@ func (c *Client) startParser() error {
 	for msg := range c.read {
 		if c.onRawMessage != nil {
 			c.onRawMessage(strconv.Quote(string(msg)))
-			// c.onRawMessage(fmt.Sprintf("%q", msg))
 		}
 
 		svc, err := getServiceCode(msg)
