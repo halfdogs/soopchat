@@ -260,6 +260,9 @@ func (c *Client) startParser() error {
 		case svc_BJ_NOTICE: // 스트리머 채팅 공지
 			dispatch(c, c.parseStreamerNotice, c.onStreamerNotice, msg)
 
+		case svc_OGQ_EMOTICON: // OGQ 메시지
+			dispatch(c, c.parseOGQMessage, c.onOGQMessage, msg)
+
 		case svc_CLOSE_BROAD: // 방송 종료
 			if c.onClose != nil {
 				c.onClose(true)
